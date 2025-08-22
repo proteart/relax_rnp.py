@@ -10,4 +10,4 @@ For more information, see :
 
     https://github.com/features/copilot
 
-This script was written with help from GitHub Copilot. l
+This script was written with help from GitHub Copilot.
