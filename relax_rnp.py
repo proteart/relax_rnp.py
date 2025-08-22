@@ -143,7 +143,7 @@ coordinate          = 1.0
 # --- CONSTRAINT PARAMETERS --- #
 
 coordinate_stddev = 0.5                  
-inflation_factor = 0.05  
+inflation_factor = 0.0  
 dihedral_jitter_amplitude = 0.1  
 
 scale_protein = 1.0 
@@ -153,7 +153,6 @@ scale_sheet = 0.7
 scale_nucleic = 0.5
 
 interface_atom_distance_cutoff = 5.0                          
-interface_backbone_distance_cutoff = 5.0 
 interface_distance_stddev = 0.25    
 watson_crick_distance_cutoff = 3.5                 
 
@@ -177,10 +176,10 @@ nucleotide_o3p_p_stddev = 0.06
 
 iterative_relaxation_cycles = 100    
 iterative_minimizer_tolerance = 0.0001           
-iterative_minimizer_iter = 50                              
+iterative_minimizer_iterations = 50                              
 
 polishing_minimizer_tolerance = 0.000001         
-polishing_minimizer_iter = 1000                      
+polishing_minimizer_iterations = 1000                      
 
 def get_interface_residues(pose, chain_indices, cutoff=None):
     """ Returns a set of residue indices in the given chains that are within cutoff Å of any residue in another chain. """
@@ -211,17 +210,10 @@ def get_interface_residues(pose, chain_indices, cutoff=None):
                 break
     return interface_res
 
-def add_interface_constraints(pose, interface_residues_dict, distance_stddev=None, backbone_distance_cutoff=None):
-    """ Universal interface constraint: CA for proteins, C4' for nucleic acids (else P). """
-    def main_atom(res):
-        if res.is_protein() and res.has("CA"):
-            return "CA"
-        elif (res.is_DNA() or res.is_RNA()):
-            if res.has("C4'"):
-                return "C4'"
-            elif res.has("P"):
-                return "P"
-        return None
+def add_interface_constraints(pose, interface_residues_dict, distance_stddev=None):
+    """Constrain only backbone atoms of interface residues between chains."""
+    protein_backbone = ["N", "CA", "C", "O"]
+    nucleic_backbone = ["P", "O5'", "C5'", "C4'", "C3'", "O3'"]
     n_constraints = 0
     for key, value in interface_residues_dict.items():
         residues = value["residues"]
@@ -230,24 +222,26 @@ def add_interface_constraints(pose, interface_residues_dict, distance_stddev=Non
         groupB = [idx for idx in residues if pose.pdb_info().chain(idx) == chainB]
         for res1_idx in groupA:
             res1 = pose.residue(res1_idx)
-            atom1 = main_atom(res1)
-            if not atom1:
-                continue
+            atoms1 = protein_backbone if res1.is_protein() else nucleic_backbone if (res1.is_DNA() or res1.is_RNA()) else []
             for res2_idx in groupB:
                 res2 = pose.residue(res2_idx)
-                atom2 = main_atom(res2)
-                if not atom2:
-                    continue
-                xyz1 = res1.xyz(atom1)
-                xyz2 = res2.xyz(atom2)
-                dist = (xyz1 - xyz2).norm()
-                if dist < backbone_distance_cutoff:
-                    id1 = AtomID(res1.atom_index(atom1), res1_idx)
-                    id2 = AtomID(res2.atom_index(atom2), res2_idx)
-                    func = HarmonicFunc(dist, distance_stddev)
-                    pose.add_constraint(AtomPairConstraint(id1, id2, func))
-                    n_constraints += 1
-    print(f"Added {n_constraints} universal interface constraints across all chain pairs.")
+                atoms2 = protein_backbone if res2.is_protein() else nucleic_backbone if (res2.is_DNA() or res2.is_RNA()) else []
+                for atom1 in atoms1:
+                    if not res1.has(atom1):
+                        continue
+                    for atom2 in atoms2:
+                        if not res2.has(atom2):
+                            continue
+                        xyz1 = res1.xyz(atom1)
+                        xyz2 = res2.xyz(atom2)
+                        dist = (xyz1 - xyz2).norm()
+                        if dist <= interface_atom_distance_cutoff:  
+                            id1 = AtomID(res1.atom_index(atom1), res1_idx)
+                            id2 = AtomID(res2.atom_index(atom2), res2_idx)
+                            func = HarmonicFunc(dist, distance_stddev)
+                            pose.add_constraint(AtomPairConstraint(id1, id2, func))
+                            n_constraints += 1
+    print(f"Added {n_constraints} backbone interface constraints across all chain pairs.")
 
 def identify_watson_crick_pairs_by_criteria(pose, distance_cutoff=None):
     """ Identify Watson-Crick base pairs based on distance and chain criteria. """
@@ -591,12 +585,12 @@ def detect_residue_types(pose):
             has_rna = True
     return has_protein, has_nucleic, has_dna, has_rna
 
-def add_conditional_constraints(pose, interface_residues_dict, distance_stddev=None, backbone_distance_cutoff=None):
+def add_conditional_constraints(pose, interface_residues_dict, distance_stddev=None):
     """ Add constraints based on detected residue types. """
     has_protein, has_nucleic, has_dna, has_rna = detect_residue_types(pose)
     print(f"Detected residue types: Protein={has_protein}, DNA={has_dna}, RNA={has_rna}")
     if len(interface_residues_dict) > 0:
-        add_interface_constraints(pose, interface_residues_dict, distance_stddev, backbone_distance_cutoff)
+        add_interface_constraints(pose, interface_residues_dict, distance_stddev)
     if has_protein:
         add_protein_constraints(
         pose,
@@ -833,7 +827,7 @@ for cycle in range(num_cycles):
     scorefxn_cart = reset_score_weights(scorefxn_cart)
 
     add_coordinate_constraints(pose, anchor_atom_id, coordinate_stddev=coordinate_stddev)
-    add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev, backbone_distance_cutoff=interface_backbone_distance_cutoff)
+    add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev)
     print("")
 
     scorefxn_cart.set_weight(score_type_from_name("fa_atr"), sinusoidal_ramp(0.01 * fa_atr, fa_atr, num_cycles+1)[cycle+1])
@@ -883,7 +877,7 @@ for cycle in range(num_cycles):
     min_mover.min_type('dfpmin_armijo_nonmonotone') 
     min_mover.tolerance(iterative_minimizer_tolerance)
     min_mover.cartesian(False)
-    min_mover.max_iter(iterative_minimizer_iter)
+    min_mover.max_iter(iterative_minimizer_iterations)
     min_mover.apply(pose)
 
     pose.update_residue_neighbors()
@@ -903,7 +897,7 @@ for cycle in range(num_cycles):
     min_mover.min_type('lbfgs_armijo_nonmonotone') 
     min_mover.tolerance(iterative_minimizer_tolerance)
     min_mover.cartesian(True)
-    min_mover.max_iter(iterative_minimizer_iter)
+    min_mover.max_iter(iterative_minimizer_iterations)
     min_mover.apply(pose)
 
     pose.update_residue_neighbors()
@@ -959,7 +953,7 @@ pose.update_residue_neighbors()
 scorefxn_cart = reset_score_weights(scorefxn_cart)
 
 add_coordinate_constraints(pose, anchor_atom_id, coordinate_stddev=coordinate_stddev)
-add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev, backbone_distance_cutoff=interface_backbone_distance_cutoff)
+add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev)
 
 print("")
 
@@ -1006,7 +1000,7 @@ min_mover.score_function(scorefxn_cart)
 min_mover.min_type('dfpmin_armijo_nonmonotone') 
 min_mover.tolerance(polishing_minimizer_tolerance)
 min_mover.cartesian(False)
-min_mover.max_iter(polishing_minimizer_iter)
+min_mover.max_iter(polishing_minimizer_iterations)
 min_mover.apply(pose)
 
 pose.update_residue_neighbors()
@@ -1024,7 +1018,7 @@ min_mover.score_function(scorefxn_cart)
 min_mover.min_type('lbfgs_armijo_nonmonotone') 
 min_mover.tolerance(polishing_minimizer_tolerance)
 min_mover.cartesian(True)
-min_mover.max_iter(polishing_minimizer_iter)
+min_mover.max_iter(polishing_minimizer_iterations)
 min_mover.apply(pose)
 
 pose.update_residue_neighbors()
@@ -1082,4 +1076,3 @@ for term in terms:
     print(f"{term}: {val:.3f}")
 
 print("")
-
