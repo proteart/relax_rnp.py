@@ -29,13 +29,13 @@ from pyrosetta.rosetta.protocols.minimization_packing import PackRotamersMover
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
 
-print(" ")
+print("")
 print("Initializing PyRosetta...")
 
-print(" ")
+print("")
 init("-ignore_unrecognized_res -ex1 -ex2 -ex2aro -ex3 -ex4 -extrachi_cutoff 0 -use_input_sc -detect_disulf -no_optH false -flip_HNQ -mute core.scoring.etable basic.io.database core.chemical.GlobalResidueTypeSet core.import_pose.import_pose core.io.pdb.file_data core.io.pose_from_sfr.PoseFromSFRBuilder core.io.pose_from_sfr.chirality_resolution core.energy_methods.CartesianBondedEnergy")
 
-print(" ")
+print("")
 print("PyRosetta initialized.")
 
 def windows_to_wsl_path(path):
@@ -51,9 +51,9 @@ dump_dir = windows_to_wsl_path(r"C:\Users\---")
 output_pdb = os.path.splitext(input_pdb)[0] + "_relaxed.pdb"
 os.makedirs(dump_dir, exist_ok=True)
 
-print(" ")
+print("")
 pose = pose_from_pdb(input_pdb)
-print(" ")
+print("")
 print(f"Input PDB: {input_pdb}")
 
 addVirtualResAsRoot(pose)
@@ -61,14 +61,14 @@ anchor_res = pose.total_residue()
 anchor_atom_id = AtomID(1, anchor_res)
 
 scorefxn_cart = ScoreFunctionFactory.create_score_function("ref2015_cart")
-print(" ")
+print("")
 print("Score function configured")
 
 tf = TaskFactory()
 tf.push_back(RestrictToRepacking())
 tf.push_back(IncludeCurrent())
 packer_task = tf.create_task_and_apply_taskoperations(pose)
-print(" ")
+print("")
 print("TaskFactory configured.")
 
 n_chains = pose.num_chains()
@@ -76,13 +76,13 @@ chain_starts = [pose.chain_begin(i+1) for i in range(n_chains)]
 chain_ends = [pose.chain_end(i+1) for i in range(n_chains)]
 virtual_root = pose.total_residue() 
 
-print(" ")
+print("")
 print(f"Chains detected: {n_chains}")
 for i in range(n_chains):
     chain_id = pose.pdb_info().chain(chain_starts[i])
     print(f"Chain {chain_id}: {chain_starts[i]}-{chain_ends[i]}")
 
-print(" ")
+print("")
 print(f"Virtual root residue: {virtual_root}")
 
 ft = rosetta.core.kinematics.FoldTree()
@@ -93,18 +93,18 @@ for i in range(n_chains):
 
 if ft.check_fold_tree():
     pose.fold_tree(ft)
-    print(" ")
+    print("")
     print("Fold tree configured.")
 else:
     print("Fold tree invalid!")
 
-print(" ")
+print("")
 
 print("Jump setup:")
 for i in range(n_chains):
     chain_id = pose.pdb_info().chain(chain_starts[i])
     print(f"Jump {i+1}: virtual root -> chain {chain_id} ({chain_starts[i]})")
-print(" ")
+print("")
 
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
@@ -765,7 +765,7 @@ def jitter_all_dihedrals(pose, max_deg=None, cycle=None, total_cycles=None):
 # ----------------------------------------------------------------------------------------------- #
 
 print("=== INPUT POSE ===")
-print(" ")
+print("")
 
 pose.remove_constraints()
 pose.energies().clear()
@@ -773,7 +773,7 @@ scorefxn_clean = ScoreFunctionFactory.create_score_function("ref2015_cart")
 score_clean = scorefxn_clean(pose)  
 print(f"Score = {score_clean:.3f}")
 
-print(" ")
+print("")
 terms = scorefxn_clean.get_nonzero_weighted_scoretypes()
 print("Score terms:")
 for term in terms:
@@ -782,10 +782,10 @@ for term in terms:
 
 n_chains = pose.num_chains()
 chain_ids = [pose.pdb_info().chain(pose.chain_begin(i)) for i in range(1, n_chains + 1)]
-print(" ")  
+print("")  
 print("Detected chain IDs:", chain_ids)
 
-print(" ")
+print("")
 
 all_interface_residues = set()
 interface_residues_dict = {}
@@ -822,7 +822,7 @@ num_cycles = iterative_relaxation_cycles
 for cycle in range(num_cycles):
 
     print(f"=== ITERATIVE CONSTRAINED RELAXATION : CYCLE {cycle+1}/{num_cycles} ===")
-    print(" ")
+    print("")
     movemap = MoveMap()
     movemap.set_bb(True)
     movemap.set_chi(True)
@@ -834,7 +834,7 @@ for cycle in range(num_cycles):
 
     add_coordinate_constraints(pose, anchor_atom_id, coordinate_stddev=coordinate_stddev)
     add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev, backbone_distance_cutoff=interface_backbone_distance_cutoff)
-    print(" ")
+    print("")
 
     scorefxn_cart.set_weight(score_type_from_name("fa_atr"), sinusoidal_ramp(0.01 * fa_atr, fa_atr, num_cycles+1)[cycle+1])
     scorefxn_cart.set_weight(score_type_from_name("fa_rep"), sinusoidal_ramp(0.01 * fa_rep, fa_rep, num_cycles+1)[cycle+1])
@@ -919,14 +919,14 @@ for cycle in range(num_cycles):
 
     current_score = scorefxn_cart(pose)
 
-    print(" ")
+    print("")
     pose.remove_constraints()
     pose.energies().clear()
     scorefxn_clean = ScoreFunctionFactory.create_score_function("ref2015_cart")
     score_clean = scorefxn_clean(pose)
     print(f"Score = {score_clean:.3f}")
 
-    print(" ")
+    print("")
     terms = scorefxn_clean.get_nonzero_weighted_scoretypes()
     print("Score terms:")
     for term in terms:
@@ -939,16 +939,16 @@ for cycle in range(num_cycles):
     cycle_pdb = os.path.join(dump_dir, f"cycle_{cycle+1:03d}_pose.pdb")
     pose.dump_pdb(cycle_pdb)
 
-    print(" ")
+    print("")
     print(f"Dumped cycle {cycle+1} pose.")
-    print(" ")
+    print("")
 
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
 
 print("=== STRUCTURE POLISHING ===") 
-print(" ")
+print("")
 movemap = MoveMap()
 movemap.set_bb(True)
 movemap.set_chi(True)
@@ -961,7 +961,7 @@ scorefxn_cart = reset_score_weights(scorefxn_cart)
 add_coordinate_constraints(pose, anchor_atom_id, coordinate_stddev=coordinate_stddev)
 add_conditional_constraints(pose, interface_residues_dict, distance_stddev=interface_distance_stddev, backbone_distance_cutoff=interface_backbone_distance_cutoff)
 
-print(" ")
+print("")
 
 scorefxn_cart.set_weight(score_type_from_name("fa_atr"), fa_atr)
 scorefxn_cart.set_weight(score_type_from_name("fa_rep"), fa_rep)
@@ -1038,14 +1038,14 @@ pack_mover.apply(pose)
 
 current_score = scorefxn_cart(pose)
 
-print(" ")
+print("")
 pose.remove_constraints()
 pose.energies().clear()
 scorefxn_clean = ScoreFunctionFactory.create_score_function("ref2015_cart")
 score_clean = scorefxn_clean(pose)  
 print(f"Score = {score_clean:.3f}")
 
-print(" ")
+print("")
 terms = scorefxn_clean.get_nonzero_weighted_scoretypes()
 print("Score terms:")
 for term in terms:
@@ -1055,18 +1055,18 @@ for term in terms:
 current_score = scorefxn_cart(pose)
 prev_score = current_score
 
-print(" ")
+print("")
 relaxed_pdb = os.path.join(dump_dir, "relaxed_pose.pdb")
 pose.dump_pdb(relaxed_pdb)
 print(f"Dumped relaxed pose.")
-print(" ")
+print("")
 
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
 
 print("=== OUTPUT POSE ===")
-print(" ")
+print("")
 
 pose.remove_constraints()
 pose.energies().clear()
@@ -1074,11 +1074,12 @@ scorefxn_clean = ScoreFunctionFactory.create_score_function("ref2015_cart")
 score_clean = scorefxn_clean(pose)  
 print(f"Score = {score_clean:.3f}")
 
-print(" ")
+print("")
 terms = scorefxn_clean.get_nonzero_weighted_scoretypes()
 print("Score terms:")
 for term in terms:
     val = pose.energies().total_energies()[term]
     print(f"{term}: {val:.3f}")
 
-print(" ")
+print("")
+
